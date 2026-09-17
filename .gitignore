@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+frontend/dist/
+backend.zip
+beifen/
+*.zip
+uploads/videos/*
+uploads/screenshots/*
+uploads/screenshots/thumbs/*
+!**/uploads/videos/.gitkeep
+!**/uploads/screenshots/.gitkeep
+!**/uploads/screenshots/thumbs/.gitkeep
+.DS_Store
+Thumbs.db
