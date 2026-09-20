@@ -7,14 +7,16 @@
         v-for="game in gamesState.list"
         :key="game.slug"
         class="nav-item"
-        :class="{ open: openSlug === game.slug }"
+        :class="{ open: isOpen(game.slug) }"
+        @mouseenter="onEnter(game.slug)"
+        @mouseleave="onLeave(game.slug)"
       >
         <button class="nav-link nav-trigger" type="button" @click.stop="toggle(game.slug)">
           {{ game.name }}
         </button>
         <div class="nav-dropdown">
-          <router-link :to="`/games/${game.slug}/videos`" @click="openSlug = ''">高光视频</router-link>
-          <router-link :to="`/games/${game.slug}/screenshots`" @click="openSlug = ''">高光截图</router-link>
+          <router-link :to="`/games/${game.slug}/videos`" @click="closeMenu">高光视频</router-link>
+          <router-link :to="`/games/${game.slug}/screenshots`" @click="closeMenu">高光截图</router-link>
         </div>
       </div>
       <router-link class="nav-link" to="/submit">投稿</router-link>
@@ -38,13 +40,41 @@ import { logoutUser, userState } from "../stores/user";
 
 const router = useRouter();
 const openSlug = ref("");
+const hoverSlug = ref("");
+const suppressHover = ref(false);
+
+function isOpen(slug) {
+  return openSlug.value === slug || (!suppressHover.value && hoverSlug.value === slug);
+}
 
 function toggle(slug) {
+  suppressHover.value = false;
   openSlug.value = openSlug.value === slug ? "" : slug;
 }
 
+function onEnter(slug) {
+  hoverSlug.value = slug;
+  if (suppressHover.value) return;
+  if (openSlug.value && openSlug.value !== slug) openSlug.value = "";
+}
+
+function onLeave(slug) {
+  if (hoverSlug.value === slug) hoverSlug.value = "";
+  suppressHover.value = false;
+}
+
+function closeMenu() {
+  openSlug.value = "";
+  hoverSlug.value = "";
+  suppressHover.value = true;
+  const el = document.activeElement;
+  if (el && typeof el.blur === "function" && el.closest?.(".nav-item")) {
+    el.blur();
+  }
+}
+
 function close(event) {
-  if (!event.target.closest(".nav-item")) openSlug.value = "";
+  if (!event.target.closest(".nav-item")) closeMenu();
 }
 
 function onLogout() {

@@ -84,8 +84,6 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
-.nav-item:hover .nav-dropdown,
-.nav-item:focus-within .nav-dropdown,
 .nav-item.open .nav-dropdown {
   display: grid;
   gap: 4px;
