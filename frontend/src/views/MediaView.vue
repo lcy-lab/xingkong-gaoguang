@@ -36,6 +36,7 @@
             <LikeButton :item="item" type="video" />
           </div>
           <p v-if="item.description">{{ item.description }}</p>
+          <CommentSection type="video" :media-id="Number(item.id)" />
         </article>
       </div>
 
@@ -55,6 +56,7 @@
               <LikeButton :item="item" type="screenshot" />
             </div>
             <span v-if="item.description">{{ item.description }}</span>
+            <CommentSection type="screenshot" :media-id="Number(item.id)" />
           </figcaption>
         </figure>
       </div>
@@ -96,6 +98,7 @@
             <LikeButton :item="preview" type="screenshot" />
           </div>
           <span v-if="preview.description">{{ preview.description }}</span>
+          <CommentSection type="screenshot" :media-id="Number(preview.id)" />
         </figcaption>
       </figure>
       <button
@@ -116,6 +119,7 @@ import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api";
 import LikeButton from "../components/LikeButton.vue";
+import CommentSection from "../components/CommentSection.vue";
 
 const props = defineProps({
   kind: { type: String, required: true },

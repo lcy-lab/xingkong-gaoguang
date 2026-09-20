@@ -117,6 +117,43 @@ async function initDb() {
       KEY idx_sms_phone_created (phone, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_comments (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      media_type ENUM('video', 'screenshot') NOT NULL,
+      media_id BIGINT UNSIGNED NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      parent_id BIGINT UNSIGNED NULL,
+      content VARCHAR(500) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_comments_media (media_type, media_id, created_at),
+      KEY idx_comments_parent (parent_id),
+      CONSTRAINT fk_comments_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_comments_parent
+        FOREIGN KEY (parent_id) REFERENCES media_comments (id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS comment_likes (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      comment_id BIGINT UNSIGNED NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uk_comment_like (comment_id, user_id),
+      KEY idx_comment_likes_user (user_id),
+      CONSTRAINT fk_comment_likes_comment
+        FOREIGN KEY (comment_id) REFERENCES media_comments (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_comment_likes_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   await ensureColumn("media_likes", "user_id", "user_id BIGINT UNSIGNED NULL");
   const [likeIndex] = await pool.query("SHOW INDEX FROM media_likes WHERE Key_name = 'uk_like_once'");
@@ -360,13 +397,32 @@ async function getScreenshotById(id) {
   return rows[0] || null;
 }
 
+async function deleteCommentsForMedia(mediaType, mediaId) {
+  await pool.query(
+    `DELETE cl FROM comment_likes cl
+     JOIN media_comments c ON c.id = cl.comment_id
+     WHERE c.media_type = ? AND c.media_id = ?`,
+    [mediaType, mediaId]
+  );
+  await pool.query(
+    "DELETE FROM media_comments WHERE media_type = ? AND media_id = ? AND parent_id IS NOT NULL",
+    [mediaType, mediaId]
+  );
+  await pool.query("DELETE FROM media_comments WHERE media_type = ? AND media_id = ?", [
+    mediaType,
+    mediaId,
+  ]);
+}
+
 async function deleteVideo(id) {
   await pool.query("DELETE FROM media_likes WHERE media_type = 'video' AND media_id = ?", [id]);
+  await deleteCommentsForMedia("video", id);
   await pool.query("DELETE FROM highlight_videos WHERE id = ?", [id]);
 }
 
 async function deleteScreenshot(id) {
   await pool.query("DELETE FROM media_likes WHERE media_type = 'screenshot' AND media_id = ?", [id]);
+  await deleteCommentsForMedia("screenshot", id);
   await pool.query("DELETE FROM highlight_screenshots WHERE id = ?", [id]);
 }
 
@@ -493,6 +549,129 @@ async function toggleLike(mediaType, mediaId, userId) {
   }
 }
 
+function mapComment(row) {
+  return {
+    id: Number(row.id),
+    media_type: row.media_type,
+    media_id: Number(row.media_id),
+    user_id: Number(row.user_id),
+    parent_id: row.parent_id ? Number(row.parent_id) : null,
+    content: row.content,
+    nickname: row.nickname || "用户",
+    created_at: row.created_at,
+    like_count: Number(row.like_count || 0),
+    liked: Boolean(row.liked),
+    replies: [],
+  };
+}
+
+async function getCommentById(id) {
+  const [rows] = await pool.query("SELECT * FROM media_comments WHERE id = ? LIMIT 1", [id]);
+  return rows[0] || null;
+}
+
+async function listComments(mediaType, mediaId, userId = 0) {
+  const [rows] = await pool.query(
+    `SELECT c.id, c.media_type, c.media_id, c.user_id, c.parent_id, c.content, c.created_at,
+            u.nickname,
+            (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id) AS like_count,
+            EXISTS(
+              SELECT 1 FROM comment_likes l
+              WHERE l.comment_id = c.id AND l.user_id = ?
+            ) AS liked
+     FROM media_comments c
+     JOIN users u ON u.id = c.user_id
+     WHERE c.media_type = ? AND c.media_id = ?
+     ORDER BY c.created_at ASC, c.id ASC`,
+    [userId || 0, mediaType, mediaId]
+  );
+  const byId = new Map();
+  const roots = [];
+  for (const row of rows) {
+    const item = mapComment(row);
+    byId.set(item.id, item);
+  }
+  for (const item of byId.values()) {
+    if (item.parent_id && byId.has(item.parent_id)) {
+      byId.get(item.parent_id).replies.push(item);
+    } else {
+      roots.push(item);
+    }
+  }
+  return roots;
+}
+
+async function insertComment({ mediaType, mediaId, userId, parentId, content }) {
+  if (parentId) {
+    const parent = await getCommentById(parentId);
+    if (!parent || parent.media_type !== mediaType || Number(parent.media_id) !== Number(mediaId)) {
+      const err = new Error("要回复的评论不存在。");
+      err.status = 400;
+      throw err;
+    }
+    parentId = parent.parent_id || parent.id;
+  } else {
+    parentId = null;
+  }
+
+  const [result] = await pool.query(
+    `INSERT INTO media_comments (media_type, media_id, user_id, parent_id, content)
+     VALUES (?, ?, ?, ?, ?)`,
+    [mediaType, mediaId, userId, parentId, content]
+  );
+  const [rows] = await pool.query(
+    `SELECT c.id, c.media_type, c.media_id, c.user_id, c.parent_id, c.content, c.created_at,
+            u.nickname, 0 AS like_count, 0 AS liked
+     FROM media_comments c
+     JOIN users u ON u.id = c.user_id
+     WHERE c.id = ? LIMIT 1`,
+    [result.insertId]
+  );
+  return mapComment(rows[0]);
+}
+
+async function toggleCommentLike(commentId, userId) {
+  const comment = await getCommentById(commentId);
+  if (!comment) return null;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [existing] = await conn.query(
+      "SELECT id FROM comment_likes WHERE comment_id = ? AND user_id = ? LIMIT 1",
+      [commentId, userId]
+    );
+    let liked;
+    if (existing.length) {
+      await conn.query("DELETE FROM comment_likes WHERE id = ?", [existing[0].id]);
+      liked = false;
+    } else {
+      await conn.query("INSERT INTO comment_likes (comment_id, user_id) VALUES (?, ?)", [
+        commentId,
+        userId,
+      ]);
+      liked = true;
+    }
+    const [countRows] = await conn.query(
+      "SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?",
+      [commentId]
+    );
+    await conn.commit();
+    return { liked, likeCount: Number(countRows[0].n) };
+  } catch (err) {
+    await conn.rollback();
+    if (err && err.code === "ER_DUP_ENTRY") {
+      const [countRows] = await pool.query(
+        "SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?",
+        [commentId]
+      );
+      return { liked: true, likeCount: Number(countRows[0].n) };
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 function isReady() {
   return dbReady;
 }
@@ -532,6 +711,10 @@ module.exports = {
   mediaExists,
   setReviewStatus,
   toggleLike,
+  listComments,
+  insertComment,
+  getCommentById,
+  toggleCommentLike,
   isReady,
   getLastError,
   setLastError,

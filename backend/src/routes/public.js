@@ -139,4 +139,77 @@ router.post("/submissions/screenshots", requireUser, (req, res) => {
   });
 });
 
+router.get("/comments", optionalUser, async (req, res) => {
+  if (!db.isReady()) {
+    return res.status(503).json({ message: db.getLastError() || "数据库未连接。" });
+  }
+  const mediaType = String(req.query.type || "");
+  const mediaId = Number(req.query.id);
+  if (!["video", "screenshot"].includes(mediaType) || !Number.isInteger(mediaId) || mediaId <= 0) {
+    return res.status(400).json({ message: "评论参数无效。" });
+  }
+  const exists = await db.mediaExists(mediaType, mediaId);
+  if (!exists) {
+    return res.status(404).json({ message: "内容不存在。" });
+  }
+  const comments = await db.listComments(mediaType, mediaId, req.user?.id || 0);
+  res.json({ comments });
+});
+
+router.post("/comments", requireUser, async (req, res) => {
+  if (!db.isReady()) {
+    return res.status(503).json({ message: db.getLastError() || "数据库未连接。" });
+  }
+  const mediaType = String(req.body.type || "");
+  const mediaId = Number(req.body.id);
+  const content = String(req.body.content || "").trim();
+  const parentId = req.body.parent_id ? Number(req.body.parent_id) : null;
+  if (!["video", "screenshot"].includes(mediaType) || !Number.isInteger(mediaId) || mediaId <= 0) {
+    return res.status(400).json({ message: "评论参数无效。" });
+  }
+  if (!content) {
+    return res.status(400).json({ message: "请输入评论内容。" });
+  }
+  if (content.length > 500) {
+    return res.status(400).json({ message: "评论不能超过 500 字。" });
+  }
+  if (parentId != null && (!Number.isInteger(parentId) || parentId <= 0)) {
+    return res.status(400).json({ message: "回复目标无效。" });
+  }
+  const exists = await db.mediaExists(mediaType, mediaId);
+  if (!exists) {
+    return res.status(404).json({ message: "内容不存在。" });
+  }
+  try {
+    const comment = await db.insertComment({
+      mediaType,
+      mediaId,
+      userId: req.user.id,
+      parentId,
+      content,
+    });
+    res.json({ comment });
+  } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ message: err.message });
+    }
+    throw err;
+  }
+});
+
+router.post("/comments/:id/like", requireUser, async (req, res) => {
+  if (!db.isReady()) {
+    return res.status(503).json({ message: db.getLastError() || "数据库未连接。" });
+  }
+  const commentId = Number(req.params.id);
+  if (!Number.isInteger(commentId) || commentId <= 0) {
+    return res.status(400).json({ message: "评论不存在。" });
+  }
+  const result = await db.toggleCommentLike(commentId, req.user.id);
+  if (!result) {
+    return res.status(404).json({ message: "评论不存在。" });
+  }
+  res.json(result);
+});
+
 module.exports = router;

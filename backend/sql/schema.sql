@@ -114,3 +114,38 @@ CREATE TABLE IF NOT EXISTS sms_codes (
   PRIMARY KEY (id),
   KEY idx_sms_phone_created (phone, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS media_comments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  media_type ENUM('video', 'screenshot') NOT NULL,
+  media_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  parent_id BIGINT UNSIGNED NULL,
+  content VARCHAR(500) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_comments_media (media_type, media_id, created_at),
+  KEY idx_comments_parent (parent_id),
+  CONSTRAINT fk_comments_user
+    FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_comments_parent
+    FOREIGN KEY (parent_id) REFERENCES media_comments (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS comment_likes (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  comment_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_comment_like (comment_id, user_id),
+  KEY idx_comment_likes_user (user_id),
+  CONSTRAINT fk_comment_likes_comment
+    FOREIGN KEY (comment_id) REFERENCES media_comments (id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_comment_likes_user
+    FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
