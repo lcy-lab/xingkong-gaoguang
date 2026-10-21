@@ -37,6 +37,26 @@ router.get("/games/:slug/screenshots", optionalUser, async (req, res) => {
   res.json({ game, ...result });
 });
 
+router.get("/games/:slug/:kind/:id", optionalUser, async (req, res) => {
+  if (!db.isReady()) {
+    return res.status(503).json({ message: db.getLastError() || "数据库未连接。" });
+  }
+  const kind = req.params.kind === "videos" ? "video" : req.params.kind === "screenshots" ? "screenshot" : "";
+  const mediaId = Number(req.params.id);
+  if (!kind || !Number.isInteger(mediaId) || mediaId <= 0) {
+    return res.status(404).json({ message: "内容不存在。" });
+  }
+  const item = await db.getPublicMedia(kind, mediaId, req.user?.id || 0);
+  if (!item || item.game_slug !== req.params.slug) {
+    return res.status(404).json({ message: "内容不存在。" });
+  }
+  res.json({
+    game: { id: item.game_id, slug: item.game_slug, name: item.game_name },
+    item,
+    kind,
+  });
+});
+
 router.post("/likes/toggle", requireUser, async (req, res) => {
   if (!db.isReady()) {
     return res.status(503).json({ message: db.getLastError() || "数据库未连接。" });

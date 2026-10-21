@@ -248,6 +248,69 @@ a { color: var(--accent); text-decoration: none; }
 }
 .like-icon { font-size: 15px; line-height: 1; }
 
+.media-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px 0;
+}
+.shot .media-actions,
+.lightbox-figure .media-actions,
+.detail-body .media-actions {
+  margin: 10px 0 0;
+  justify-content: flex-start;
+}
+.comment-btn,
+.comment-btn-static {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(126, 231, 255, 0.08);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+.comment-btn:hover {
+  background: rgba(126, 231, 255, 0.16);
+  color: var(--ink);
+}
+.comment-icon { font-size: 14px; line-height: 1; }
+
+.detail-back {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: var(--muted);
+}
+.detail-card {
+  background: rgba(16, 24, 44, 0.86);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.detail-media {
+  background: #000;
+}
+.detail-media img,
+.detail-video {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  background: #000;
+}
+.detail-body { padding: 16px 20px 20px; }
+.detail-body h1 { margin: 0 0 8px; font-size: 22px; }
+.detail-desc { margin: 0; color: var(--muted); }
+.detail-meta { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.detail-page .comments {
+  margin: 20px 0 0;
+  padding: 16px 0 0;
+}
+
 .comments {
   margin: 12px 16px 16px;
   padding: 12px 0 0;

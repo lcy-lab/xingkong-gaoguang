@@ -228,6 +228,7 @@ function mapLikeRows(rows) {
     ...row,
     like_count: Number(row.like_count || 0),
     liked: Boolean(row.liked),
+    comment_count: Number(row.comment_count || 0),
   }));
 }
 
@@ -250,7 +251,8 @@ async function listVideos(gameId, userId = 0, paging = {}) {
       EXISTS(
         SELECT 1 FROM media_likes l
         WHERE l.media_type = 'video' AND l.media_id = v.id AND l.user_id = ?
-      ) AS liked
+      ) AS liked,
+      (SELECT COUNT(*) FROM media_comments c WHERE c.media_type = 'video' AND c.media_id = v.id) AS comment_count
      FROM highlight_videos v
      WHERE v.game_id = ? AND v.review_status = 'approved'
      ORDER BY v.created_at DESC
@@ -278,7 +280,8 @@ async function listScreenshots(gameId, userId = 0, paging = {}) {
       EXISTS(
         SELECT 1 FROM media_likes l
         WHERE l.media_type = 'screenshot' AND l.media_id = s.id AND l.user_id = ?
-      ) AS liked
+      ) AS liked,
+      (SELECT COUNT(*) FROM media_comments c WHERE c.media_type = 'screenshot' AND c.media_id = s.id) AS comment_count
      FROM highlight_screenshots s
      WHERE s.game_id = ? AND s.review_status = 'approved'
      ORDER BY s.created_at DESC
@@ -395,6 +398,28 @@ async function getVideoById(id) {
 async function getScreenshotById(id) {
   const [rows] = await pool.query("SELECT * FROM highlight_screenshots WHERE id = ? LIMIT 1", [id]);
   return rows[0] || null;
+}
+
+async function getPublicMedia(mediaType, mediaId, userId = 0) {
+  const table = mediaType === "video" ? "highlight_videos" : "highlight_screenshots";
+  const extra = mediaType === "screenshot" ? "m.thumbnail_path," : "";
+  const [rows] = await pool.query(
+    `SELECT m.id, m.title, m.description, m.file_path, ${extra} m.submitter_name, m.created_at,
+            g.id AS game_id, g.slug AS game_slug, g.name AS game_name,
+      (SELECT COUNT(*) FROM media_likes l WHERE l.media_type = ? AND l.media_id = m.id) AS like_count,
+      EXISTS(
+        SELECT 1 FROM media_likes l
+        WHERE l.media_type = ? AND l.media_id = m.id AND l.user_id = ?
+      ) AS liked,
+      (SELECT COUNT(*) FROM media_comments c WHERE c.media_type = ? AND c.media_id = m.id) AS comment_count
+     FROM ${table} m
+     JOIN games g ON g.id = m.game_id
+     WHERE m.id = ? AND m.review_status = 'approved' AND g.is_enabled = 1
+     LIMIT 1`,
+    [mediaType, mediaType, userId || 0, mediaType, mediaId]
+  );
+  if (!rows[0]) return null;
+  return mapLikeRows(rows)[0];
 }
 
 async function deleteCommentsForMedia(mediaType, mediaId) {
@@ -706,6 +731,7 @@ module.exports = {
   insertScreenshot,
   getVideoById,
   getScreenshotById,
+  getPublicMedia,
   deleteVideo,
   deleteScreenshot,
   mediaExists,

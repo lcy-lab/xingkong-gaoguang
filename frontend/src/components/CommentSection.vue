@@ -1,6 +1,6 @@
 <template>
   <section class="comments" @click.stop>
-    <h3 class="comments-title">评论 {{ totalCount }}</h3>
+    <h3 class="comments-title">全部回复 ({{ totalCount }})</h3>
     <p v-if="error" class="comments-error">{{ error }}</p>
     <p v-else-if="loading" class="comments-empty">加载评论...</p>
     <p v-else-if="!comments.length" class="comments-empty">还没有评论。</p>
@@ -62,7 +62,7 @@
         v-model="draft"
         maxlength="500"
         rows="3"
-        :placeholder="isUserLoggedIn() ? placeholder : '登录后才能评论'"
+        :placeholder="isUserLoggedIn() ? placeholder : '登录后参与讨论'"
         @focus="ensureLogin"
       ></textarea>
       <button type="submit" :disabled="posting">{{ posting ? "发送中..." : "发表评论" }}</button>
@@ -91,12 +91,16 @@ const posting = ref(false);
 const likeBusy = ref(0);
 const replyTo = ref(null);
 
+const emit = defineEmits(["count-change"]);
+
 const totalCount = computed(() =>
   comments.value.reduce((sum, item) => sum + 1 + (item.replies?.length || 0), 0)
 );
 
+watch(totalCount, (count) => emit("count-change", count));
+
 const placeholder = computed(() =>
-  replyTo.value ? `回复 ${replyTo.value.nickname}` : "写下你的评论"
+  replyTo.value ? `回复 ${replyTo.value.nickname}` : "参与讨论，写下你的评论"
 );
 
 function formatTime(value) {

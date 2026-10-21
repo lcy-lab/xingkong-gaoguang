@@ -3,6 +3,7 @@ import { isLoggedIn } from "../stores/auth";
 import { isUserLoggedIn } from "../stores/user";
 import HomeView from "../views/HomeView.vue";
 import MediaView from "../views/MediaView.vue";
+import MediaDetailView from "../views/MediaDetailView.vue";
 import SubmitView from "../views/SubmitView.vue";
 import LoginView from "../views/LoginView.vue";
 import RegisterView from "../views/RegisterView.vue";
@@ -24,6 +25,18 @@ const router = createRouter({
       path: "/games/:slug/screenshots",
       name: "screenshots",
       component: MediaView,
+      props: { kind: "screenshot" },
+    },
+    {
+      path: "/games/:slug/videos/:id",
+      name: "video-detail",
+      component: MediaDetailView,
+      props: { kind: "video" },
+    },
+    {
+      path: "/games/:slug/screenshots/:id",
+      name: "screenshot-detail",
+      component: MediaDetailView,
       props: { kind: "screenshot" },
     },
     {

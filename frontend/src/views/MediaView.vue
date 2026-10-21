@@ -33,10 +33,12 @@
           </div>
           <div class="card-body">
             <h2>{{ item.title }}</h2>
-            <LikeButton :item="item" type="video" />
           </div>
           <p v-if="item.description">{{ item.description }}</p>
-          <CommentSection type="video" :media-id="Number(item.id)" />
+          <div class="media-actions">
+            <CommentButton :item="item" type="video" :slug="game.slug" />
+            <LikeButton :item="item" type="video" />
+          </div>
         </article>
       </div>
 
@@ -53,10 +55,12 @@
           <figcaption>
             <div class="shot-meta">
               <strong>{{ item.title }}</strong>
-              <LikeButton :item="item" type="screenshot" />
             </div>
             <span v-if="item.description">{{ item.description }}</span>
-            <CommentSection type="screenshot" :media-id="Number(item.id)" />
+            <div class="media-actions">
+              <CommentButton :item="item" type="screenshot" :slug="game.slug" />
+              <LikeButton :item="item" type="screenshot" />
+            </div>
           </figcaption>
         </figure>
       </div>
@@ -95,10 +99,12 @@
         <figcaption>
           <div class="shot-meta">
             <strong>{{ preview.title }}</strong>
-            <LikeButton :item="preview" type="screenshot" />
           </div>
           <span v-if="preview.description">{{ preview.description }}</span>
-          <CommentSection type="screenshot" :media-id="Number(preview.id)" />
+          <div class="media-actions">
+            <CommentButton :item="preview" type="screenshot" :slug="game.slug" />
+            <LikeButton :item="preview" type="screenshot" />
+          </div>
         </figcaption>
       </figure>
       <button
@@ -119,7 +125,7 @@ import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api";
 import LikeButton from "../components/LikeButton.vue";
-import CommentSection from "../components/CommentSection.vue";
+import CommentButton from "../components/CommentButton.vue";
 
 const props = defineProps({
   kind: { type: String, required: true },
